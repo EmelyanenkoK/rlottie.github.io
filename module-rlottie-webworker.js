@@ -28,12 +28,13 @@ var RLottieModule = (function () {
           obj.pendingFrame = true;
       }
     }
-    obj.init = function () {
-        window.addEventListener('dragover', handleDragOver, false);
-        window.addEventListener('drop', handleFileSelect, false);
-        window.addEventListener('resize',windowResize);
-        relayoutCanvas();
-        obj.canvas = document.getElementById("myCanvas");
+    obj.init = function (canv) {
+        //window.addEventListener('dragover', handleDragOver, false);
+        //window.addEventListener('drop', handleFileSelect, false);
+        //window.addEventListener('resize',windowResize);
+        //relayoutCanvas();
+        console.log(canv);
+        obj.canvas = canv? document.getElementById(canv) : document.getElementById("myCanvas");
         obj.context = obj.canvas.getContext('2d');
         
         mainLoop();
@@ -41,7 +42,7 @@ var RLottieModule = (function () {
     obj.renderRequest = function () {
          //console.log(obj.curFrame);
          obj.pendingFrame = false;
-         rlottie_worker.sendQuery('render', obj.curFrame, obj.canvas.width, obj.canvas.height);
+         rlottie_worker.sendQuery('render', obj.curFrame, 100, 100);
     }
     obj.render = function () {
         if (obj.canvas.width == 0  || obj.canvas.height == 0) return;
@@ -59,7 +60,7 @@ var RLottieModule = (function () {
       obj.curFrame = 0;
       obj.renderRequest();
       // force a render in pause state
-      sliderReset();
+      //sliderReset();
       if (!obj.playing)
         window.requestAnimationFrame( obj.render);
     }
@@ -86,8 +87,8 @@ var RLottieModule = (function () {
         obj.rafId = window.requestAnimationFrame( mainLoop );
         if (obj.pendingFrame) {
           obj.render();
-          document.getElementById("slider").max = obj.frameCount;
-          document.getElementById("slider").value = obj.curFrame;
+          //document.getElementById("slider").max = obj.frameCount;
+          //document.getElementById("slider").value = obj.curFrame;
         }
         obj.renderRequest();
      }
@@ -226,3 +227,64 @@ rlottie_worker.addListener('ready', function () {
 rlottie_worker.addListener('info', RLottieModule.setAttribute);
 
 rlottie_worker.addListener('result', RLottieModule.result);
+
+
+function htmlToElement(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html.trim();
+    return div.firstChild;
+}
+
+function loadLottie(url) {
+    return new Promise((resolve, reject) => {
+        const xmlHttp = new XMLHttpRequest();
+        xmlHttp.responseType = 'arraybuffer';
+        xmlHttp.onreadystatechange = () => {
+            if (xmlHttp.readyState === 4) {
+                if (xmlHttp.status === 200) {
+                    const arrayBuffer = xmlHttp.response;
+                    const animationData = new TextDecoder('utf-8').decode(pako.inflate(arrayBuffer));
+                    resolve(animationData);
+                } else {
+                    reject();
+                }
+            }
+        };
+        xmlHttp.open("GET", url, true);
+        xmlHttp.send(null);
+    });
+}
+
+const setupLottie = async i => {
+    setTimeout(async () => {
+        const n = 7;
+        const json = await loadLottie('test/' + i + '.tgs')
+        document.getElementById('w').appendChild(
+            htmlToElement(`
+                    <div class="content" id="content${i}">
+      <canvas class="" id="myCanvas${i}" width="100" height="100" style="border:1px solid #dae1e7;"></canvas>
+    </div>`)
+        )
+
+        RLottieModule.init('myCanvas' + i); 
+        RLottieModule.reload(json);        
+    }, i * 500)
+}
+
+function setup() {
+    var head = document.head;
+    var script = document.createElement('script');
+    script.type = 'text/javascript';
+    script.src = 'rlottie-wasm.js';
+    head.appendChild(script);
+
+    script.onload = _ => {
+        Module.onRuntimeInitialized = _ => {
+            for (let i = 0; i < 5; i++) {
+                setupLottie(i)
+            }
+        };
+    };
+}
+
+setup();
